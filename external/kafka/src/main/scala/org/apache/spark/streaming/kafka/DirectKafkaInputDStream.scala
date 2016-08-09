@@ -113,6 +113,7 @@ class DirectKafkaInputDStream[
 
   protected var currentOffsets = fromOffsets
 
+  @tailrec
   protected final def latestLeaderOffsets(retries: Int): Map[TopicAndPartition, LeaderOffset] = {
     val topics = fromOffsets.keys.map{ tP =>
       tP.topic
@@ -131,6 +132,7 @@ class DirectKafkaInputDStream[
         case Right(tplo) => tplo
       }
     }
+    currentOffsets = currentOffsets ++ newTpOffset.mapValues(value => value.offset)
 
     val o = kc.getLatestLeaderOffsets(currentOffsets.keySet)
     // Either.fold would confuse @tailrec, do it manually
@@ -143,10 +145,10 @@ class DirectKafkaInputDStream[
         Thread.sleep(kc.config.refreshLeaderBackoffMs)
         latestLeaderOffsets(retries - 1)
       }
+    } else {
+      o.right.get
     }
-    currentOffsets = currentOffsets ++ newTpOffset.mapValues(value => value.offset)
-    val old = o.right.get
-    (old ++ newTpOffset)
+
 
   }
 
